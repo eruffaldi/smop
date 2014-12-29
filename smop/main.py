@@ -4,7 +4,7 @@
 import version
 import sys,cPickle,glob,os
 import getopt,re
-import lexer,parse,resolve,backend,options,node,graphviz
+import lexer,parse,resolve,backend,options,node,graphviz,dumper
 import networkx as nx
 import readline
 #from runtime import *
@@ -33,6 +33,7 @@ def usage():
     -o- --output=-          Use standard output
     -s --strict             Stop on the first error
     -v --verbose
+    -t                      Output tree only               
 """
 
 def main():
@@ -48,8 +49,8 @@ def main():
     """
     try:
         opts, args = getopt.gnu_getopt(sys.argv[1:],
-                                       "d:ho:vVsr:S:X:", 
-                                       [
+                                       "d:tho:vVsr:S:X:", 
+                                       [                                    
                                         "dot=",
                                         "exclude=",
                                         "help",
@@ -71,6 +72,7 @@ def main():
     strict = 0
     dot = None
     runtime = []
+    dumptree = False
 
     for o, a in opts:
         if o in ("-r", "--runtime"):
@@ -81,6 +83,8 @@ def main():
             options.syntax_errors += a.split(",")
         elif o in ("-d", "--dot"):
             dot = re.compile(a)
+        elif o in ("-t"):
+            dumptree = True
         elif o in ("-X", "--exclude"):
             exclude_list += [ "%s.m" % b for b in a.split(",")]
         elif o in ("-v", "--verbose"):
@@ -149,6 +153,10 @@ def main():
     for a in runtime:
         print >> fp, "from %s import *" % a
 
+    if dumptree:
+        from lxml import etree
+        root = etree.Element("syntax")
+    
     for pattern in args:
         for filename in glob.glob(os.path.expanduser(pattern)):
             if not filename.endswith(".m"):
@@ -178,12 +186,18 @@ def main():
                 fp0 = open("parse_"+func_name+".dot","w") if dot and dot.match(func_name) else None
                 if fp0:
                     graphviz.graphviz(func_obj,fp0)
-                if options.do_resolve:
+                if not dumptree and options.do_resolve:
                     G = resolve.resolve(func_obj)
-
             for func_obj in func_list:
-                s = backend.backend(func_obj)
-                print >> fp, s
+                if dumptree:
+                    s = dumper.dumper(func_obj)
+                    root.append(s)
+                else:
+                    s = backend.backend(func_obj)
+                    print >> fp, s
+    if dumptree:
+        fpxml = open(output + ".xml","wb")
+        print >> fpxml, etree.tostring(root, pretty_print=True)
 
 if __name__ == "__main__":
     main()
