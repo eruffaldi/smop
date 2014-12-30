@@ -2,6 +2,7 @@
 # Copyright 2014 Emanuele Ruffaldi @ PERCRO Scuola Superiore Sant'Anna 
 #
 #
+# TODO: matrix concat build size
 # Ideas: special function calls for typecasting
 # Ideas: constant marker during typeannotation
 # Ideas: scope management for local variables + external info for arguments and global (how specified?)
@@ -152,6 +153,7 @@ def _annotate(self,level=0):
     
 @extend(node.add)
 def _annotate(self,level=0):
+
     setattr(self,"_xtype",tunk)
 
 @extend(node.sub)
@@ -206,11 +208,53 @@ def _annotate(self,level=0):
     setattr(self,"_xtype",tunk)
     
 
+def allnumbers(args):
+    r = []
+    for x in args:
+        if x.__class__ == node.number:
+            r.append(x.value)
+        else:
+            return None
+    return r
+def annotate_builtin_one_zeros(target,args):
+    if len(args) == 0:
+        # just 0
+        pass
+    else:
+        if args[-1].__class__ == node.string:
+            classname = args[-1].name
+            gargs = args[0:-1]            
+        else:
+            classname = "double"
+            gargs = args
+        if len(gargs) == 0:
+            aa = [1]
+        else:
+            aa = allnumbers(gargs)
+        if aa is None:
+            return
+        target._xtype = TypeSpec(classname,aa)
+
+standardscalarfx = set(['cos','sin','tan','atan2'])
 @extend(node.funcall)
 def _annotate(self,level=0):
     self.func_expr._annotate()
     self.args._annotate()
     setattr(self,"_xtype",tunk)
+
+    if self.func_expr.__class__ is node.ident:
+        fname = self.func_expr.name
+        if fname == "ones" or fname == "zeros":
+            annotate_builtin_one_zeros(self,self.args)
+        elif fname in standardscalarfx:
+            if len(self.args) == 1:
+                self._xtype = self.args[0]._xtype
+
+    # TODO special: zeros(A,B,...,[classname]) or zeros([A,B,...][,classname])
+    # unsupported 'like'
+    # no arguments is pure 0
+    # idem for ones
+    # special eye
 
 @extend(node.let)
 def _annotate(self,level=0):
@@ -247,8 +291,8 @@ def _annotate(self,level=0):
         if base is None:
             base = t._xtype
         elif base != t._xtype:
-            base = "unknown"
-    if base is not None and base is not "unknown" and len(base.sizes) == 2:
+            base = tunk
+    if base is not None and base != tunk and base.sizes is not None and len(base.sizes) == 2:
         self._xtype = TypeSpec(base.name,[len(self),base.sizes[1]],False)
     else:
         self._xtype = tunk
@@ -260,7 +304,10 @@ def _annotate(self,level=0):
         
 @extend(node.ident)
 def _annotate(self,level=0):
-    setattr(self,"_xtype",tunk)
+    if self.name == "pi":
+        self._xtype = tscalar
+    else:
+        setattr(self,"_xtype",tunk)
 
 @extend(node.stmt_list)
 def _annotate(self,level=0):
