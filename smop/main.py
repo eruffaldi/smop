@@ -4,7 +4,7 @@
 import version
 import sys,cPickle,glob,os
 import getopt,re
-import lexer,parse,resolve,backend,options,node,graphviz,dumper
+import lexer,parse,resolve,backend,options,node,graphviz,dumper,typeannotate
 import networkx as nx
 import readline
 #from runtime import *
@@ -190,6 +190,12 @@ def main():
                     G = resolve.resolve(func_obj)
             for func_obj in func_list:
                 if dumptree:
+                    try:
+                        typeannotate.annotate(func_obj)
+                    except:
+                        print "exception in experimental annotation"
+                        import traceback
+                        traceback.print_exc()
                     s = dumper.dumper(func_obj)
                     root.append(s)
                 else:
