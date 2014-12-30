@@ -1,10 +1,17 @@
 # smop -- Simple Matlab to Python compiler
 # Copyright 2014 Emanuele Ruffaldi @ PERCRO Scuola Superiore Sant'Anna 
+#
+#
+# Ideas: special function calls for typecasting
+# Ideas: constant marker during typeannotation
+# Ideas: scope management for local variables + external info for arguments and global (how specified?)
+# Ideas: special external functions with known behaviors (e.g. fft) 
 
 import logging
 logger = logging.getLogger(__name__)
 import node,options
 from node import extend
+import math
 
 
 class TypeSpec:
@@ -155,10 +162,41 @@ def _annotate(self,level=0):
 def _annotate(self,level=0):
     for t in self.args:
         t._annotate()
+    self._xtype = tunk
     if self.op == "-":
         self._xtype = self.args[0]._xtype
-    else:
-        setattr(self,"_xtype",tunk)
+    elif self.op == "parens":
+        if len(self.args) == 1:
+            self._xtype = self.args[0]._xtype
+
+    elif self.op == ":":
+        if len(self.args) == 2:
+            if self.args[0].__class__ == node.number and self.args[1].__class__ == node.number:
+                first = self.args[0].value
+                last = self.args[1].value
+                k = last-first+1
+            else:
+                return
+        elif len(self.args) == 3:
+            if self.args[0].__class__ == node.number and self.args[1].__class__ == node.number and self.args[2].__class__ == node.number:
+                first = self.args[0].value
+                last  = self.args[1].value
+                step = self.args[2].value
+                if step < 0 and last > first:
+                    k = 0
+                elif step > 0 and last < first:
+                    k = 0
+                elif step == 0:
+                    k = 0
+                else:   
+                    k = int(math.floor((last-first)/step))+1
+            else:
+                return
+        else:
+            return
+        self._xtype = TypeSpec("double",[1,k]) #actually virtual indices
+
+
 
 
 @extend(node.arrayref)
